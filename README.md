@@ -2,6 +2,10 @@
 #### Projeto Requisito Para Conclusão Da Disciplina De Inteligência Artificial FATEC/RP
 A ser Desenvolvido em Grupo
 
+# Para Inicializar
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 
 # Sistema de Monitoramento de Preços e Inflação
 

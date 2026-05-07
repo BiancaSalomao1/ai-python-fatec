@@ -1,0 +1,1 @@
+print("Módulo testes carregado")

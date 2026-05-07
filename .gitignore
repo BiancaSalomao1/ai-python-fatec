@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtualenv
+venv/
+.env/
+.venv/
+bin/
+lib/
+include/
+pyvenv.cfg
+lib64/
+
+# Environment variables
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# OCR / AI cache
+.easyocr/
+.huggingface/
+.cache/
+models/
+
+# Torch
+torch_cache/
+
+# Persistência temporária
+persistencia/extracoes/*.json
+
+# Uploads temporários
+imagens/
+
+# SQLite
+*.db
+*.sqlite3
+
+# Pytest
+.pytest_cache/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Mypy
+.mypy_cache/
+
+# Ruff
+.ruff_cache/
+
+# Temporary
+tmp/
+temp/
+
+# Ignore specific files
+share/
