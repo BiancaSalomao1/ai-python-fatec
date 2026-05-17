@@ -1,0 +1,6 @@
+easyocr
+pillow
+google-genai
+sentence-transformers
+scikit-learn
+flask

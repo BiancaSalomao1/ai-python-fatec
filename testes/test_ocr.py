@@ -1,80 +1,64 @@
-# file: testes/test_ocr.py
+"""
+Teste manual do pipeline OCR → Normalizer → LLM.
+
+Uso:
+    python testes/test_ocr.py imagens/NF01.jpeg
+    python testes/test_ocr.py          # usa a primeira imagem encontrada em imagens/
+"""
 
 import sys
 from pathlib import Path
 
-import cv2
-import numpy as np
-
-
-
 ROOT = Path(__file__).resolve().parents[1]
-
 sys.path.insert(0, str(ROOT))
 
+from ingestao.ocr_service import OCRService
 from inteligencia.llm_parse import LLMParser
 from inteligencia.normalizer import OCRNormalizer
-from ingestao.ocr_service import OCRService
+
 
 def main():
-
-    print(
-        f"Numpy: {np.__version__}"
-    )
-
-    print(
-        f"OpenCV: {cv2.__version__}"
-    )
-
-    imagem_path = Path(
-    "/home/biancav15/Documentos/Workspaces/"
-    "Python/ProjetoIA/ai-python-fatec/"
-    "imagens/NF01.jpeg"
-)
+    # Resolve o caminho da imagem
+    if len(sys.argv) > 1:
+        imagem_path = Path(sys.argv[1])
+    else:
+        imagens = sorted((ROOT / "imagens").glob("*.jpeg")) + \
+                  sorted((ROOT / "imagens").glob("*.jpg")) + \
+                  sorted((ROOT / "imagens").glob("*.png"))
+        if not imagens:
+            print("Nenhuma imagem encontrada em imagens/. Passe o caminho como argumento.")
+            sys.exit(1)
+        imagem_path = imagens[0]
 
     if not imagem_path.exists():
+        print(f"Imagem não encontrada: {imagem_path}")
+        sys.exit(1)
 
-        raise FileNotFoundError(
-            f"Imagem não encontrada: {imagem_path}"
-        )
+    print(f"Imagem: {imagem_path}\n")
 
+    # OCR
     ocr = OCRService()
+    textos = ocr.extrair_texto(str(imagem_path))
+    print(f"Textos brutos: {len(textos)} linhas")
 
-    textos = ocr.extrair_texto(
-        str(imagem_path)
-    )
+    # Normalização
+    textos_limpos = OCRNormalizer.limpar_textos(textos)
+    print(f"Após normalização: {len(textos_limpos)} linhas\n")
 
-    textos_limpos = textos
-        
-    
-
+    # LLM
     parser = LLMParser()
+    produtos = parser.estruturar_produtos(textos_limpos)
 
-    produtos = (
-        parser.estruturar_produtos(
-            textos_limpos
-        )
-    )
     if isinstance(produtos, dict):
+        print(f"Erro: {produtos}")
+        return
 
-        print(
-        "\n=== ERRO ===\n"
-    )
-
-        print(produtos)
-
-    return
-
-
-    print(
-        "\n=== PRODUTOS EXTRAIDOS ===\n"
-    )
-
-    for produto in produtos:
-
-        print(produto)
+    print(f"=== PRODUTOS EXTRAÍDOS ({len(produtos)}) ===\n")
+    for p in produtos:
+        nome = p.get("produto", "")
+        preco = p.get("preco", 0)
+        print(f"  {nome}: R$ {preco:.2f}")
 
 
 if __name__ == "__main__":
-
     main()

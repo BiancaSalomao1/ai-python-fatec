@@ -131,7 +131,8 @@ class OCRService:
                 continue
 
             textos.append({
-                "texto": texto
+                "texto": texto,
+                "confianca": float(resultado[2])
             })
 
         print(

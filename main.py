@@ -9,10 +9,12 @@ from PIL import Image
 from PIL import ImageTk
 
 from inteligencia.llm_parse import LLMParser
+from inteligencia.nlp_processor import NLPProcessor
+from inteligencia.normalizer import OCRNormalizer
 from persistencia.database import Database
 from persistencia.models import Extracao
-from services.estatistica_service import EstatisticaService
-from services.ocr_service import OCRService
+from ingestao.estatistica_service import EstatisticaService
+from ingestao.ocr_service import OCRService
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -34,6 +36,7 @@ class OCRApp:
         self.database = Database()
         self.ocr_service = OCRService()
         self.llm_parser = LLMParser()
+        self.nlp_processor = NLPProcessor()
         self.estatistica_service = EstatisticaService(
             self.database
         )
@@ -114,11 +117,24 @@ class OCRApp:
             str(destino)
         )
 
+        textos_ocr = OCRNormalizer.limpar_textos(textos_ocr)
+
         produtos = (
             self.llm_parser.estruturar_produtos(
                 textos_ocr
             )
         )
+
+        if isinstance(produtos, list):
+            produtos = self.nlp_processor.remover_duplicados(
+                produtos
+            )
+            produtos = self.nlp_processor.categorizar_lista(
+                produtos
+            )
+            produtos = self.estatistica_service.anotar_variacao(
+                produtos
+            )
 
         extracao = Extracao(
             nome_arquivo=destino.name,
@@ -150,12 +166,32 @@ class OCRApp:
             "=== PRODUTOS EXTRAIDOS ===\n\n"
         )
 
-        for produto in produtos:
-
+        if isinstance(produtos, dict):
             self.texto_saida.insert(
                 tk.END,
-                f"{produto}\n"
+                f"Erro: {produtos.get('erro', 'desconhecido')}\n"
             )
+        else:
+            for produto in produtos:
+                nome = produto.get("produto", "")
+                preco = produto.get("preco", 0)
+                categoria = produto.get("categoria", "outros")
+                variacao = produto.get("variacao_pct")
+                preco_ant = produto.get("preco_anterior")
+
+                if variacao is not None:
+                    sinal = "↑" if variacao > 0 else ("↓" if variacao < 0 else "=")
+                    var_str = (
+                        f"  {sinal}{abs(variacao):.1f}%"
+                        f" (era R$ {preco_ant:.2f})"
+                    )
+                else:
+                    var_str = "  (nova entrada)"
+
+                self.texto_saida.insert(
+                    tk.END,
+                    f"  [{categoria}] {nome}: R$ {preco:.2f}{var_str}\n"
+                )
 
         self.texto_saida.insert(
             tk.END,
@@ -175,6 +211,11 @@ class OCRApp:
         self.texto_saida.insert(
             tk.END,
             f"Inflacao media: {estatisticas['inflacao_media']:.2f}%\n"
+        )
+
+        self.texto_saida.insert(
+            tk.END,
+            f"Produtos rastreados: {estatisticas.get('produtos_rastreados', 0)}\n"
         )
 
         messagebox.showinfo(

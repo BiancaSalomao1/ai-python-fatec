@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitor de Inflação — FATEC/RP</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@300;400;500&display=swap');
+
+    :root {
+      --bg:      #0a0a0f;
+      --surface: #111118;
+      --border:  #1e1e2e;
+      --accent:  #e8ff47;
+      --accent2: #47b8ff;
+      --accent3: #ff6b6b;
+      --green:   #47ff8a;
+      --text:    #f0f0f0;
+      --muted:   #666680;
+      --card:    #13131d;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-weight: 300;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2rem;
+      background: rgba(10,10,15,.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-brand {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .75rem; font-weight: 600;
+      color: var(--accent); letter-spacing: .15em; text-transform: uppercase;
+    }
+    .nav-badge {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .65rem; padding: .3rem .8rem;
+      border: 1px solid var(--border); border-radius: 2rem; color: var(--muted);
+    }
+
+    /* ── LAYOUT ── */
+    .app {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      min-height: calc(100vh - 57px);
+    }
+    @media (max-width: 860px) { .app { grid-template-columns: 1fr; } }
+
+    /* ── SIDEBAR ── */
+    aside {
+      border-right: 1px solid var(--border);
+      padding: 1.5rem;
+      display: flex; flex-direction: column; gap: 1.25rem;
+      position: sticky; top: 57px;
+      height: calc(100vh - 57px);
+      overflow-y: auto;
+    }
+
+    .sidebar-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .6rem; letter-spacing: .15em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: .5rem;
+    }
+
+    /* ── DROP ZONE ── */
+    .dropzone {
+      border: 2px dashed var(--border); border-radius: .5rem;
+      padding: 1.75rem 1rem; text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .dropzone:hover, .dropzone.over { border-color: var(--accent); background: rgba(232,255,71,.03); }
+    .dropzone.selected { border-color: rgba(232,255,71,.4); }
+    .drop-icon { font-size: 2.2rem; margin-bottom: .6rem; }
+    .drop-hint { font-size: .78rem; color: var(--muted); line-height: 1.6; }
+    .drop-hint strong { color: var(--text); display: block; margin-bottom: .2rem; }
+    .file-chosen {
+      margin-top: .75rem;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .68rem; color: var(--accent);
+      word-break: break-all;
+    }
+
+    /* ── BUTTON ── */
+    .btn-run {
+      width: 100%; padding: .9rem;
+      background: var(--accent); color: #000;
+      border: none; border-radius: .3rem;
+      font-family: 'Inter', sans-serif;
+      font-weight: 700; font-size: .85rem;
+      cursor: pointer; transition: opacity .2s;
+    }
+    .btn-run:hover:not(:disabled) { opacity: .85; }
+    .btn-run:disabled { opacity: .35; cursor: not-allowed; }
+
+    /* ── PROCESSING PANEL ── */
+    .proc {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: .4rem; padding: .9rem;
+      display: none;
+    }
+    .proc.on { display: block; }
+    .proc-head {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .6rem; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: .6rem;
+    }
+    .proc-track { height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; margin-bottom: .65rem; }
+    .proc-fill { height: 100%; width: 0%; background: var(--accent); transition: width .55s cubic-bezier(0,0,.2,1); }
+    .proc-step {
+      display: flex; align-items: center; gap: .55rem;
+      padding: .25rem 0;
+      font-family: 'IBM Plex Mono', monospace; font-size: .67rem;
+      color: var(--muted); opacity: 0; transform: translateX(-4px);
+      transition: opacity .3s, transform .3s, color .3s;
+    }
+    .proc-step.on  { opacity: 1; transform: none; color: var(--text); }
+    .proc-step.done { opacity: .35; transform: none; }
+    .proc-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--border); flex-shrink: 0; transition: background .2s;
+    }
+    .proc-step.on   .proc-dot { background: var(--accent); }
+    .proc-step.done .proc-dot { background: var(--muted); }
+
+    /* ── MAIN ── */
+    main {
+      padding: 1.5rem;
+      display: flex; flex-direction: column; gap: 1.5rem;
+    }
+
+    /* ── EMPTY STATE ── */
+    .empty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; gap: 1rem; padding: 5rem 2rem;
+    }
+    .empty-icon { font-size: 3rem; opacity: .3; }
+    .empty h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.5rem; font-weight: 800; color: var(--text);
+    }
+    .empty p { font-size: .85rem; color: var(--muted); max-width: 300px; line-height: 1.7; }
+
+    /* ── SECTION LABEL ── */
+    .sec-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .6rem; letter-spacing: .15em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: .75rem;
+    }
+
+    /* ── STATS ── */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; }
+    @media (max-width: 600px) { .stats { grid-template-columns: repeat(2,1fr); } }
+    .kpi {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: .5rem; padding: 1rem;
+    }
+    .kpi-n {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.6rem; font-weight: 800; display: block;
+    }
+    .kpi-n.red    { color: var(--accent3); }
+    .kpi-n.green  { color: var(--green); }
+    .kpi-n.yellow { color: var(--accent); }
+    .kpi-n.blue   { color: var(--accent2); }
+    .kpi-l { font-size: .68rem; color: var(--muted); margin-top: .2rem; }
+
+    /* ── PRODUCT LIST ── */
+    .prod-list { display: flex; flex-direction: column; gap: .35rem; }
+
+    .prod-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      align-items: center; gap: .75rem;
+      padding: .65rem .9rem;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: .4rem; font-size: .82rem;
+    }
+
+    .cat {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .58rem; padding: .2rem .55rem; border-radius: .2rem;
+      font-weight: 600; letter-spacing: .04em; white-space: nowrap;
+    }
+    .cat-alimentos { background: rgba(232,255,71,.12);  color: var(--accent);  }
+    .cat-bebidas   { background: rgba(71,184,255,.12);  color: var(--accent2); }
+    .cat-limpeza   { background: rgba(255,179,71,.12);  color: #ffb347;        }
+    .cat-higiene   { background: rgba(196,127,255,.12); color: #c47fff;        }
+    .cat-outros    { background: rgba(102,102,128,.12); color: var(--muted);   }
+
+    .prod-nome { color: var(--text); font-size: .82rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .prod-preco { font-family: 'IBM Plex Mono', monospace; font-size: .8rem; white-space: nowrap; }
+
+    .var {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: .68rem; text-align: right; line-height: 1.4; white-space: nowrap;
+    }
+    .var.up   { color: var(--accent3); }
+    .var.down { color: var(--green);   }
+    .var.nova { color: var(--muted);   }
+
+    /* ── CHART ── */
+    .chart-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: .5rem; padding: 1.25rem;
+    }
+    .chart-card canvas { max-height: 220px; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">Monitor de Inflação</span>
+  <span class="nav-badge">FATEC/RP · IA 2026</span>
+</nav>
+
+<div class="app">
+
+  <!-- ── SIDEBAR ── -->
+  <aside>
+    <div>
+      <div class="sidebar-label">Nota Fiscal</div>
+      <div class="dropzone" id="dz">
+        <div class="drop-icon">🧾</div>
+        <div class="drop-hint">
+          <strong>Arraste a nota fiscal</strong>
+          PNG, JPG ou JPEG
+        </div>
+        <div class="file-chosen" id="dzName"></div>
+        <input type="file" id="fileIn" accept="image/png,image/jpeg" hidden>
+      </div>
+    </div>
+
+    <button class="btn-run" id="btnRun" disabled>Processar Nota Fiscal</button>
+
+    <div class="proc" id="proc">
+      <div class="proc-head">Processando</div>
+      <div class="proc-track"><div class="proc-fill" id="pFill"></div></div>
+      <div class="proc-step" id="p0"><span class="proc-dot"></span>Lendo imagem…</div>
+      <div class="proc-step" id="p1"><span class="proc-dot"></span>Extraindo texto OCR…</div>
+      <div class="proc-step" id="p2"><span class="proc-dot"></span>Enviando ao Gemini…</div>
+      <div class="proc-step" id="p3"><span class="proc-dot"></span>Estruturando JSON…</div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main id="mainArea">
+    <div class="empty" id="emptyEl">
+      <div class="empty-icon">📊</div>
+      <h2>Pronto para analisar</h2>
+      <p>Selecione uma foto de nota fiscal para extrair produtos e rastrear a inflação da sua cesta de compras.</p>
+    </div>
+  </main>
+
+</div>
+
+<script>
+const dz      = document.getElementById('dz');
+const dzName  = document.getElementById('dzName');
+const fileIn  = document.getElementById('fileIn');
+const btnRun  = document.getElementById('btnRun');
+const proc    = document.getElementById('proc');
+const pFill   = document.getElementById('pFill');
+const mainArea = document.getElementById('mainArea');
+
+let file = null;
+let procTimer = null;
+let stepIdx = 0;
+const STEPS = ['p0','p1','p2','p3'];
+
+// ── File select ──────────────────────────────────────
+dz.addEventListener('click', () => fileIn.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); pick(e.dataTransfer.files[0]); });
+fileIn.addEventListener('change', () => pick(fileIn.files[0]));
+
+function pick(f) {
+  if (!f) return;
+  file = f;
+  dzName.textContent = f.name;
+  dz.classList.add('selected');
+  btnRun.disabled = false;
+}
+
+// ── Processing animation ─────────────────────────────
+function startAnim() {
+  proc.classList.add('on');
+  STEPS.forEach(id => document.getElementById(id).className = 'proc-step');
+  pFill.style.transition = 'none'; pFill.style.width = '0%';
+  stepIdx = 0;
+  requestAnimationFrame(() => {
+    pFill.style.transition = 'width .55s cubic-bezier(0,0,.2,1)';
+    tick();
+    procTimer = setInterval(tick, 2400);
+  });
+}
+
+function tick() {
+  if (stepIdx > 0) {
+    const prev = document.getElementById(STEPS[stepIdx - 1]);
+    prev.className = 'proc-step done';
+  }
+  if (stepIdx < STEPS.length) {
+    document.getElementById(STEPS[stepIdx]).className = 'proc-step on';
+    pFill.style.width = ((stepIdx + 1) / STEPS.length * 85) + '%';
+    stepIdx++;
+  }
+}
+
+function stopAnim() {
+  clearInterval(procTimer);
+  STEPS.forEach(id => document.getElementById(id).className = 'proc-step done');
+  pFill.style.width = '100%';
+  setTimeout(() => proc.classList.remove('on'), 900);
+}
+
+// ── Upload ───────────────────────────────────────────
+btnRun.addEventListener('click', async () => {
+  if (!file || btnRun.disabled) return;
+  btnRun.disabled = true;
+  startAnim();
+
+  const fd = new FormData();
+  fd.append('imagem', file);
+
+  try {
+    const res  = await fetch('/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    stopAnim();
+    if (data.erro) { alert('Erro: ' + data.erro); return; }
+    render(data);
+  } catch (err) {
+    stopAnim();
+    alert('Falha na comunicação: ' + err.message);
+  } finally {
+    btnRun.disabled = false;
+  }
+});
+
+// ── Render results ───────────────────────────────────
+let chartInst = null;
+
+function render({ produtos, estatisticas: st }) {
+  document.getElementById('emptyEl')?.remove();
+  document.getElementById('resultSec')?.remove();
+
+  const sec = document.createElement('div');
+  sec.id = 'resultSec';
+  sec.style.cssText = 'display:flex;flex-direction:column;gap:1.5rem';
+
+  // Stats
+  const inflNum = st.inflacao_media;
+  const inflStr = (inflNum >= 0 ? '+' : '') + inflNum.toFixed(1) + '%';
+  const inflCls = inflNum > 0 ? 'red' : 'green';
+
+  sec.innerHTML = `
+    <div>
+      <div class="sec-label">Estatísticas gerais</div>
+      <div class="stats">
+        <div class="kpi"><span class="kpi-n blue">${st.total_notas}</span><div class="kpi-l">Notas processadas</div></div>
+        <div class="kpi"><span class="kpi-n yellow">${st.total_produtos}</span><div class="kpi-l">Total de produtos</div></div>
+        <div class="kpi"><span class="kpi-n ${inflCls}">${inflStr}</span><div class="kpi-l">Inflação média</div></div>
+        <div class="kpi"><span class="kpi-n">${st.produtos_rastreados}</span><div class="kpi-l">Produtos rastreados</div></div>
+      </div>
+    </div>
+    <div>
+      <div class="sec-label">Produtos extraídos — ${produtos.length} itens</div>
+      <div class="prod-list" id="prodList"></div>
+    </div>
+    <div id="chartSec"></div>
+  `;
+
+  mainArea.appendChild(sec);
+
+  // Product rows
+  const list = document.getElementById('prodList');
+  produtos.forEach((p, i) => {
+    const item = document.createElement('div');
+    item.className = 'prod-item';
+    item.style.cssText = `opacity:0;transform:translateY(6px);transition:opacity .35s ${i*70}ms ease-out,transform .35s ${i*70}ms ease-out`;
+
+    const cat   = p.categoria || 'outros';
+    const preco = typeof p.preco === 'number' ? p.preco.toFixed(2).replace('.', ',') : '–';
+
+    let varHtml;
+    if (p.variacao_pct != null) {
+      const up  = p.variacao_pct > 0;
+      const cls = up ? 'up' : 'down';
+      const sig = up ? '↑' : '↓';
+      const ant = p.preco_anterior.toFixed(2).replace('.', ',');
+      varHtml = `<span class="var ${cls}">${sig}${Math.abs(p.variacao_pct).toFixed(1)}%<br><small>era R$&nbsp;${ant}</small></span>`;
+    } else {
+      varHtml = `<span class="var nova">nova<br>entrada</span>`;
+    }
+
+    item.innerHTML = `
+      <span class="cat cat-${cat}">${cat}</span>
+      <span class="prod-nome" title="${p.produto}">${p.produto}</span>
+      <span class="prod-preco">R$&nbsp;${preco}</span>
+      ${varHtml}
+    `;
+    list.appendChild(item);
+    requestAnimationFrame(() => { item.style.opacity = '1'; item.style.transform = 'none'; });
+  });
+
+  // Historical chart
+  fetch('/historico').then(r => r.json()).then(hist => {
+    const keys = Object.keys(hist);
+    if (!keys.length) return;
+
+    const chartSec = document.getElementById('chartSec');
+    chartSec.innerHTML = `
+      <div class="sec-label">Histórico de preço — ${keys[0]}</div>
+      <div class="chart-card"><canvas id="hChart"></canvas></div>
+    `;
+
+    if (chartInst) { chartInst.destroy(); chartInst = null; }
+    const pts = hist[keys[0]];
+    chartInst = new Chart(document.getElementById('hChart'), {
+      type: 'line',
+      data: {
+        labels: pts.map(p => p.data),
+        datasets: [{
+          label: keys[0],
+          data: pts.map(p => p.preco),
+          borderColor: '#e8ff47',
+          backgroundColor: 'rgba(232,255,71,.08)',
+          borderWidth: 2,
+          pointBackgroundColor: '#e8ff47',
+          pointRadius: 4,
+          fill: true,
+          tension: 0.4,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: '#666680', font: { family: 'IBM Plex Mono', size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#666680', font: { family: 'IBM Plex Mono', size: 10 } }, grid: { color: '#1e1e2e' } },
+          y: {
+            ticks: { color: '#666680', font: { family: 'IBM Plex Mono', size: 10 }, callback: v => 'R$ ' + v.toFixed(2) },
+            grid: { color: '#1e1e2e' }
+          }
+        }
+      }
+    });
+  });
+}
+</script>
+</body>
+</html>
